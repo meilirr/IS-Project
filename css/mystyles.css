@@ -1,0 +1,25 @@
+body{
+    font-family: "Comic Sans MS";
+    background-color:honeydew;
+}
+ 
+h1{
+    font-family: "Comic Sans MS";
+}
+
+.customfont{
+    font-family: Chiller !important; 
+    /* add after <h1 class =  to attribute, */
+}
+
+h2{
+    color: darkslategrey;
+    background-color:aliceblue;
+}
+
+.imagecustom{
+    width: 40%;
+    left: 0;
+    right: 0;
+    text-align: center;
+}
