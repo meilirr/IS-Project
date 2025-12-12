@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Frog - Improved Visuals</title>
+    <style>
+        /* General Styles */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #5DADE2; /* Deeper Sky Blue */
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        #game-container {
+            width: 400px;
+            height: 600px;
+            position: relative;
+            background-color: #6B8E23; /* Olive Green - Swamp/Water */
+            /* Add some water texture effect */
+            background-image: linear-gradient(0deg, rgba(0,0,0,0.1) 50%, transparent 50%),
+                              linear-gradient(90deg, rgba(0,0,0,0.1) 50%, transparent 50%);
+            background-size: 20px 20px;
+            border: 8px solid #455a00; /* Thicker border for pond edge */
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+
+        /* --- Frog Styles (Detailed) --- */
+        #frog {
+            width: 60px; /* Slightly bigger */
+            height: 40px;
+            position: absolute;
+            background-color: #32CD32; /* Lime Green Body */
+            border-radius: 50% 50% 20% 20%; /* More frog-like shape */
+            border: 3px solid #105a10;
+            box-shadow: 0 5px 0 #105a10, /* Shadow for depth */
+                        inset 0 0 10px rgba(255,255,255,0.4); /* Highlight */
+            transition: transform 0.1s;
+            z-index: 10;
+        }
+
+        /* Frog Eyes */
+        #frog::before, #frog::after {
+            content: '';
+            position: absolute;
+            top: -15px; /* Eyes pop up */
+            width: 15px;
+            height: 15px;
+            background-color: white;
+            border-radius: 50%;
+            border: 2px solid #000;
+            z-index: 11;
+        }
+        #frog::before {
+            left: 5px;
+        }
+        #frog::after {
+            right: 5px;
+        }
+
+        /* Frog Pupils */
+        #frog::before > div, #frog::after > div {
+            content: '';
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 5px;
+            height: 5px;
+            background-color: black;
+            border-radius: 50%;
+        }
+
+        /* --- Reed Styles (Detailed) --- */
+        .reed-pair {
+            position: absolute;
+            left: 400px;
+            width: 70px; /* Thicker reeds */
+            height: 100%;
+            z-index: 5;
+        }
+        
+        .reed {
+            position: absolute;
+            width: 100%; /* Fills reed-pair width */
+            background-color: #556B2F; /* Darker Olive */
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        .top-reed {
+            top: 0;
+            border-bottom: 8px solid #3c4921;
+            border-radius: 0 0 5px 5px; /* Rounded bottom tips */
+        }
+
+        .bottom-reed {
+            bottom: 0;
+            border-top: 8px solid #3c4921;
+            border-radius: 5px 5px 0 0; /* Rounded top tips (looks like it's coming out of the water) */
+        }
+
+        /* Score & UI Styles */
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 4em;
+            font-weight: bold;
+            color: #FFEB3B; /* Yellow Score */
+            text-shadow: 2px 2px 4px #000;
+            z-index: 20;
+        }
+
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.85);
+            color: white;
+            font-size: 1.5em;
+            text-align: center;
+            border-radius: 10px;
+            border: 2px solid #FFEB3B;
+            cursor: pointer;
+            z-index: 30;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="frog">
+            <div class="pupil-left"></div> 
+            <div class="pupil-right"></div>
+        </div>
+        <div id="score">0</div>
+        <div id="message">Click or tap to **START**!</div>
+    </div>
+
+    <script>
+        const gameContainer = document.getElementById('game-container');
+        const frog = document.getElementById('frog');
+        const scoreDisplay = document.getElementById('score');
+        const message = document.getElementById('message');
+
+        // Game Constants
+        const GRAVITY = 0.5;
+        const JUMP_FORCE = -9;
+        const REED_SPEED = 3;
+        const REED_WIDTH = 70; // Matches CSS width
+        const REED_GAP = 180;
+        const FROG_WIDTH = 60; // Matches CSS width
+        const FROG_HEIGHT = 40; // Matches CSS height
+        const GAME_WIDTH = 400;
+        const GAME_HEIGHT = 600;
+
+        // Game State Variables
+        let frogY = GAME_HEIGHT / 2 - (FROG_HEIGHT / 2);
+        let velocityY = 0;
+        let isPlaying = false;
+        let score = 0;
+        let reeds = [];
+        let reedGenerationInterval;
+        let lastTime = 0;
+
+        // --- Game Logic Functions ---
+
+        function gameLoop(time) {
+            if (!isPlaying) return;
+
+            const deltaTime = time - lastTime;
+            lastTime = time;
+            const step = 1000 / 60;
+
+            // Physics Update
+            velocityY += GRAVITY * (deltaTime / step);
+            frogY += velocityY * (deltaTime / step);
+
+            // Apply transform for visual movement and rotation
+            frog.style.top = `${frogY}px`;
+            const tilt = Math.min(Math.max(velocityY * 3, -40), 90);
+            frog.style.transform = `rotate(${tilt}deg)`;
+
+            // Check for ground/ceiling collision
+            if (frogY + FROG_HEIGHT > GAME_HEIGHT || frogY < 0) {
+                gameOver();
+                return;
+            }
+
+            // Move and update reeds
+            updateReeds(deltaTime / step);
+
+            // Check for collisions with reeds
+            if (checkCollision()) {
+                gameOver();
+                return;
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function jump() {
+            if (!isPlaying) {
+                startGame();
+            }
+            velocityY = JUMP_FORCE;
+        }
+
+        function startGame() {
+            // Reset state
+            isPlaying = true;
+            score = 0;
+            scoreDisplay.textContent = score;
+            frogY = GAME_HEIGHT / 2 - (FROG_HEIGHT / 2);
+            velocityY = 0;
+            message.style.display = 'none';
+
+            // Clear existing reeds
+            reeds.forEach(reedPair => {
+                reedPair.element.remove();
+            });
+            reeds = [];
+
+            // Start the main loop
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+
+            // Start reed generation
+            // Generate reeds slightly less frequently now that they are thicker
+            reedGenerationInterval = setInterval(generateReed, 1700); 
+        }
+
+        function gameOver() {
+            isPlaying = false;
+            clearInterval(reedGenerationInterval);
+
+            message.innerHTML = `Game Over! Score: **${score}**<br><br>Click or tap to play again.`;
+            message.style.display = 'block';
+
+            frog.style.transform = 'rotate(90deg)';
+        }
+
+        function generateReed() {
+            const minHeight = 100;
+            const maxHeight = GAME_HEIGHT - REED_GAP - minHeight;
+            const gapY = Math.random() * (maxHeight - minHeight) + minHeight;
+
+            const topReedHeight = gapY;
+            const bottomReedHeight = GAME_HEIGHT - gapY - REED_GAP;
+
+            // Create the container element for the reed pair
+            const reedPairElement = document.createElement('div');
+            reedPairElement.className = 'reed-pair';
+            reedPairElement.style.left = `${GAME_WIDTH}px`;
+
+            // Create Top Reed
+            const topReed = document.createElement('div');
+            topReed.className = 'reed top-reed';
+            topReed.style.height = `${topReedHeight}px`;
+
+            // Create Bottom Reed
+            const bottomReed = document.createElement('div');
+            bottomReed.className = 'reed bottom-reed';
+            bottomReed.style.height = `${bottomReedHeight}px`;
+
+            // Assemble and add to DOM
+            reedPairElement.appendChild(topReed);
+            reedPairElement.appendChild(bottomReed);
+            gameContainer.appendChild(reedPairElement);
+
+            // Add to the reeds array for tracking
+            reeds.push({
+                element: reedPairElement,
+                top: topReed,
+                bottom: bottomReed,
+                x: GAME_WIDTH,
+                scored: false
+            });
+        }
+
+        function updateReeds(stepFactor) {
+            reeds.forEach(reedPair => {
+                reedPair.x -= REED_SPEED * stepFactor;
+                reedPair.element.style.left = `${reedPair.x}px`;
+
+                // Score Check
+                if (reedPair.x + REED_WIDTH < FROG_WIDTH && !reedPair.scored) {
+                    score++;
+                    scoreDisplay.textContent = score;
+                    reedPair.scored = true;
+                }
+            });
+
+            // Cleanup
+            if (reeds.length > 0 && reeds[0].x < -REED_WIDTH) {
+                reeds[0].element.remove();
+                reeds.shift();
+            }
+        }
+
+        function checkCollision() {
+            // Frog position relative to game container
+            const frogX = parseFloat(frog.style.left || 0);
+            const frogRight = frogX + FROG_WIDTH;
+            const frogBottom = frogY + FROG_HEIGHT;
+
+            for (const reedPair of reeds) {
+                const reedX = reedPair.x;
+                const reedRight = reedX + REED_WIDTH;
+
+                // Horizontal alignment check
+                if (frogRight > reedX && frogX < reedRight) {
+                    
+                    const topReedHeight = parseInt(reedPair.top.style.height);
+                    
+                    // Collision with the Top Reed
+                    if (frogY < topReedHeight) {
+                        return true;
+                    }
+
+                    // Collision with the Bottom Reed
+                    const bottomReedHeight = parseInt(reedPair.bottom.style.height);
+                    const bottomReedTop = GAME_HEIGHT - bottomReedHeight;
+                    if (frogBottom > bottomReedTop) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // --- Event Listeners ---
+
+        gameContainer.addEventListener('mousedown', jump);
+        gameContainer.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            jump();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                jump();
+            }
+        });
+
+        message.addEventListener('click', () => {
+            if (!isPlaying) {
+                startGame();
+            }
+        });
+
+        // Initial positioning
+        frog.style.top = `${frogY}px`;
+        frog.style.left = '50px'; // Starting X position for the frog
+    </script>
+
+</body>
+</html>
